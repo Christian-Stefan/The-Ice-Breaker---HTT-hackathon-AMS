@@ -10,18 +10,20 @@ import {
   ActivityIndicator,
   Platform
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const BACKEND_URL = 'http://127.0.0.1:8000';
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [scanType, setScanType] = useState<'label' | 'garment'>('label');
   const [analyzing, setAnalyzing] = useState(false);
+  const [selectedClothing, setSelectedClothing] = useState<string>('');
   const cameraRef = useRef<any>(null);
   const router = useRouter();
 
@@ -57,7 +59,8 @@ export default function ScanScreen() {
           quality: 0.8,
           base64: true,
         });
-        setCapturedImage(`data:image/jpeg;base64,${photo.base64}`);
+
+        setCapturedImage(`${photo.base64}`);
       } catch (error) {
         console.error('Error taking picture:', error);
         Alert.alert('Error', 'Failed to take picture');
@@ -85,10 +88,10 @@ export default function ScanScreen() {
         throw new Error('Failed to analyze image');
       }
 
-      const data = await response.json();
+      // const data = await response.json();
       
       // Navigate to results screen with data
-      router.push({
+      /*router.push({
         pathname: '/results',
         params: {
           scanId: data.scan_id,
@@ -96,7 +99,7 @@ export default function ScanScreen() {
           imageData: capturedImage,
           scanType: scanType,
         },
-      });
+      });*/
     } catch (error) {
       console.error('Error analyzing image:', error);
       Alert.alert('Error', 'Failed to analyze clothing. Please try again.');
@@ -123,52 +126,22 @@ export default function ScanScreen() {
           <Image source={{ uri: capturedImage }} style={styles.previewImage} />
 
           <View style={styles.scanTypeContainer}>
-            <Text style={styles.scanTypeLabel}>What did you scan?</Text>
-            <View style={styles.scanTypeButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.scanTypeButton,
-                  scanType === 'label' && styles.scanTypeButtonActive,
-                ]}
-                onPress={() => setScanType('label')}
-              >
-                <Ionicons
-                  name="pricetag"
-                  size={24}
-                  color={scanType === 'label' ? '#fff' : '#4CAF50'}
-                />
-                <Text
-                  style={[
-                    styles.scanTypeButtonText,
-                    scanType === 'label' && styles.scanTypeButtonTextActive,
-                  ]}
+            <Text style={styles.scanTypeLabel}>What Clothing does this Label belong to?</Text>
+            <View style={styles.picker}>
+                <Picker
+                  selectedValue={selectedClothing}
+                  onValueChange={(value) => setSelectedClothing(value)}
+                  style={styles.picker}
                 >
-                  Clothing Label
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.scanTypeButton,
-                  scanType === 'garment' && styles.scanTypeButtonActive,
-                ]}
-                onPress={() => setScanType('garment')}
-              >
-                <Ionicons
-                  name="shirt"
-                  size={24}
-                  color={scanType === 'garment' ? '#fff' : '#4CAF50'}
-                />
-                <Text
-                  style={[
-                    styles.scanTypeButtonText,
-                    scanType === 'garment' && styles.scanTypeButtonTextActive,
-                  ]}
-                >
-                  Garment
-                </Text>
-              </TouchableOpacity>
-            </View>
+                  <Picker.Item label="Sweater" value="1" />
+                  <Picker.Item label="Jacket" value="2" />
+                  <Picker.Item label="Jeans" value="3" />
+                  <Picker.Item label="Shorts" value="4" />
+                  <Picker.Item label="Pants" value="5" />
+                  <Picker.Item label="Dress" value="6" />
+                  <Picker.Item label="Skirt" value="7" />
+                </Picker>
+              </View>
           </View>
 
           <TouchableOpacity
@@ -188,7 +161,7 @@ export default function ScanScreen() {
         </ScrollView>
       </SafeAreaView>
     );
-  }
+  } 
 
   return (
     <SafeAreaView style={styles.container}>
@@ -272,6 +245,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  picker:{
+    height: 30,
+    fontSize: 16    
   },
   cameraContainer: {
     flex: 1,

@@ -9,8 +9,19 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+# from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 import base64
+import json 
+from openai import OpenAI
+from matplotlib import pyplot as plt 
+
+### Hard Coded Stuff Start ### 
+# -- CONFIG
+GREENPT_API_KEY = "sk-CpkdZT1zSlekZOrSv8htAdFeYeiAPkIlqlBuvoyX-vQ"
+GREENPT_BASE_URL = "https://api.greenpt.ai/v1"
+MODEL_ID = "green-l-raw" 
+# -- CONFIG
+### Hard Coded Stuff End ###
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -67,6 +78,24 @@ async def root():
 
 @api_router.post("/analyze-clothing")
 async def analyze_clothing(request: AnalyzeClothingRequest):
+    print("Request received!")
+    data = await request.model_dump_json()
+    image_64 = data.get("image_base64")
+
+    try:
+        print(f"Connecting to GreenPT at {GREENPT_BASE_URL}...")
+        client = OpenAI(
+            api_key=GREENPT_API_KEY,
+            base_url=GREENPT_BASE_URL
+        )
+        
+        print("\n✅ Connection Successful! Available Models:")
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+
+
+    return
+    """
     try:
         logger.info(f"Starting analysis for {request.scan_type}")
         
@@ -88,7 +117,7 @@ async def analyze_clothing(request: AnalyzeClothingRequest):
         
         # Create the analysis prompt based on scan type
         if request.scan_type == "label":
-            prompt = """Analyze this clothing label image and provide a detailed sustainability assessment in the following JSON format:
+            prompt = ""Analyze this clothing label image and provide a detailed sustainability assessment in the following JSON format:
 
 {
   "materials": [list of materials/fabrics identified],
@@ -99,9 +128,9 @@ async def analyze_clothing(request: AnalyzeClothingRequest):
   "sustainability_score": "Overall score from 1-10 with brief explanation"
 }
 
-Provide only the JSON response, no additional text."""
+Provide only the JSON response, no additional text.""
         else:
-            prompt = """Analyze this clothing/garment image and provide a detailed sustainability assessment in the following JSON format:
+            prompt = ""Analyze this clothing/garment image and provide a detailed sustainability assessment in the following JSON format:
 
 {
   "materials": [list of likely materials/fabrics based on visual appearance],
@@ -112,7 +141,7 @@ Provide only the JSON response, no additional text."""
   "sustainability_score": "Overall estimated score from 1-10 with brief explanation"
 }
 
-Provide only the JSON response, no additional text."""
+Provide only the JSON response, no additional text.""
         
         # Create image content from base64
         image_content = ImageContent(image_base64=request.image_base64)
@@ -168,6 +197,7 @@ Provide only the JSON response, no additional text."""
     except Exception as e:
         logger.error(f"Error analyzing clothing: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    """
 
 @api_router.get("/scan-history", response_model=List[ScanResultResponse])
 async def get_scan_history():
