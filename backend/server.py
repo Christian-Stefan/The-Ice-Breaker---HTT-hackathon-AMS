@@ -79,8 +79,11 @@ async def root():
 @api_router.post("/analyze-clothing")
 async def analyze_clothing(request: AnalyzeClothingRequest):
     print("Request received!")
-    data = await request.model_dump_json()
+    print(request)
+
+    data = request.model_dump()
     image_64 = data.get("image_base64")
+    clothing_type = data.get("clothing_type")
 
     try:
         print(f"Connecting to GreenPT at {GREENPT_BASE_URL}...")
@@ -88,13 +91,79 @@ async def analyze_clothing(request: AnalyzeClothingRequest):
             api_key=GREENPT_API_KEY,
             base_url=GREENPT_BASE_URL
         )
-        
-        print("\n✅ Connection Successful! Available Models:")
+        print("Connection successful!")        
     except Exception as e:
         print(f"\n❌ Error: {e}")
 
+    print("🧥 Analyzing label with GreenPT...")
+    # We define the strict JSON structure we want the AI to mimic
+    json_structure_example = """
+    {
+        "carbon_footprint" : "10 CO2e",
+        "material_composition" : [
+            {"material_name" : "acrylic", "environmental_consequence" : "Microplastic Pollution: ..."}, 
+            {"material_name" : "polyester", "environmental_consequence" : "Non-Biodegradable: ..."}
+        ],
+        "country_origin" : "China",
+        "expected_durability" : "5 years",
+        "final_decision" : false,
+        "sustainable_tips": ["Tip 1", "Tip 2", "Tip 3"]
+    }
+    """
 
-    return
+    response = client.chat.completions.create(
+        model=MODEL_ID,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a helpful expert in sustainable fashion practices. You have profound knowledge of the fast fashion industry. You will be providing advice to consumers on their clothing purchases. OUTPUT RAW JSON ONLY. NO MARKDOWN."
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text", 
+                        "text": f"""
+                        Consider the label in the image provided. It belongs to a {clothing_type}. 
+                        From all available information determine the following metrics for the item of clothing to which this label belongs: 
+                        carbon footprint (in CO2 equivalents), material composition, country of origin, durability.
+
+                        Format the output as a JSON object exactly like this example:
+                        {json_structure_example}
+
+                        For each harmful material, explain the environmental consequences in at most 50 words. 
+                        Based on your analysis of the previous metrics give a final boolean (true/false) decision on whether the clothing is environmentally sustainable.
+                        Finally, populate the 'sustainable_tips' list with 3 suggestions on how the user can make more sustainable decisions for their existing item of clothing.
+                        """
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"{image_64}"
+                        },
+                    },
+                ],
+            }
+        ],
+        temperature=0.1,
+    )
+
+    # --- PARSING LOGIC ---
+    raw_content = response.choices[0].message.content
+    
+    # Clean up Markdown if the model adds ```json ... ```
+    if "```json" in raw_content:
+        raw_content = raw_content.split("```json")[1].split("```")[0]
+    elif "```" in raw_content:
+        raw_content = raw_content.split("```")[1].split("```")[0]
+        
+    try:
+        print(json.loads(raw_content))
+        return json.loads(raw_content)
+    except json.JSONDecodeError:
+        print("❌ Failed to parse JSON. Model output was not valid JSON.")
+        return {"error": "Parsing failed", "raw_output": raw_content}
+
     """
     try:
         logger.info(f"Starting analysis for {request.scan_type}")

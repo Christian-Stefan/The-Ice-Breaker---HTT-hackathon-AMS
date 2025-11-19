@@ -8,13 +8,15 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-  Platform
+  Platform,
+  Button
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 
@@ -68,6 +70,22 @@ export default function ScanScreen() {
     }
   };
 
+  const uploadPicture = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"], 
+      base64: true
+    });
+    
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      if (asset.base64) {
+        setCapturedImage(`data:image/jpeg;base64,${asset.base64}`);
+      } else {
+        console.warn("No base64 data returned from picker");
+      }
+    }
+  };
+
   const analyzeImage = async () => {
     if (!capturedImage) return;
 
@@ -81,6 +99,7 @@ export default function ScanScreen() {
         body: JSON.stringify({
           image_base64: capturedImage,
           scan_type: scanType,
+          clothing_type: selectedClothing
         }),
       });
 
@@ -187,6 +206,10 @@ export default function ScanScreen() {
         <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
           <View style={styles.captureButtonInner} />
         </TouchableOpacity>
+      </View>
+
+      <View>
+        <Button title="Pick Image" onPress={uploadPicture} />
       </View>
     </SafeAreaView>
   );
