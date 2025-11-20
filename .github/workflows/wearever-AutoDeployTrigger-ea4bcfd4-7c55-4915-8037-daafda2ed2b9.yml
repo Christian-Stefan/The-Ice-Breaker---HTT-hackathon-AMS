@@ -5,7 +5,7 @@ on:
   # Automatically trigger it when detected changes in repo
   push:
     branches: 
-      [ main ]
+      [ firstusercase ]
     paths:
     - '**'
     - '.github/workflows/wearever-AutoDeployTrigger-ea4bcfd4-7c55-4915-8037-daafda2ed2b9.yml'
@@ -45,6 +45,7 @@ jobs:
           imageToBuild: default/[parameters('containerAppName')]:${{ github.sha }}
           _buildArgumentsKey_: |
             _buildArgumentsValues_
+
 
 
 
