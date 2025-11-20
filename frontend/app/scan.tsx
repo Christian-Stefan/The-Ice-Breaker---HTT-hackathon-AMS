@@ -25,7 +25,7 @@ export default function ScanScreen() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [scanType, setScanType] = useState<'label' | 'garment'>('label');
   const [analyzing, setAnalyzing] = useState(false);
-  const [selectedClothing, setSelectedClothing] = useState<string>('');
+  const [selectedClothing, setSelectedClothing] = useState<string>('sweater');
   const cameraRef = useRef<any>(null);
   const router = useRouter();
 
@@ -89,6 +89,9 @@ export default function ScanScreen() {
   const analyzeImage = async () => {
     if (!capturedImage) return;
 
+    console.log("Sending data to backend..");
+    console.log(selectedClothing);
+
     setAnalyzing(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/analyze-clothing`, {
@@ -107,18 +110,17 @@ export default function ScanScreen() {
         throw new Error('Failed to analyze image');
       }
 
-      // const data = await response.json();
+      const data = await response.json();
       
+      console.log(data);
+
       // Navigate to results screen with data
-      /*router.push({
+      router.push({
         pathname: '/results',
         params: {
-          scanId: data.scan_id,
-          analysisData: JSON.stringify(data.analysis),
-          imageData: capturedImage,
-          scanType: scanType,
+          analysisResults: JSON.stringify(data),
         },
-      });*/
+      });
     } catch (error) {
       console.error('Error analyzing image:', error);
       Alert.alert('Error', 'Failed to analyze clothing. Please try again.');
@@ -149,16 +151,16 @@ export default function ScanScreen() {
             <View style={styles.picker}>
                 <Picker
                   selectedValue={selectedClothing}
-                  onValueChange={(value) => setSelectedClothing(value)}
+                  onValueChange={(value, itemIndex) => setSelectedClothing(value)}
                   style={styles.picker}
                 >
-                  <Picker.Item label="Sweater" value="1" />
-                  <Picker.Item label="Jacket" value="2" />
-                  <Picker.Item label="Jeans" value="3" />
-                  <Picker.Item label="Shorts" value="4" />
-                  <Picker.Item label="Pants" value="5" />
-                  <Picker.Item label="Dress" value="6" />
-                  <Picker.Item label="Skirt" value="7" />
+                  <Picker.Item label="Sweater" value="sweater" />
+                  <Picker.Item label="Jacket" value="jacket" />
+                  <Picker.Item label="Jeans" value="jeans" />
+                  <Picker.Item label="Shorts" value="shorts" />
+                  <Picker.Item label="Pants" value="pants" />
+                  <Picker.Item label="Dress" value="dress" />
+                  <Picker.Item label="Skirt" value="skirts" />
                 </Picker>
               </View>
           </View>

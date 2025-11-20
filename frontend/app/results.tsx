@@ -11,13 +11,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const BACKEND_URL = 'http://127.0.0.1:8000';
+
 export default function ResultsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-
-  const analysis = params.analysisData ? JSON.parse(params.analysisData as string) : null;
-  const imageData = params.imageData as string;
-  const scanType = params.scanType as string;
+  const analysis = JSON.parse(params.analysisResults as string); 
 
   if (!analysis) {
     return (
@@ -32,12 +31,58 @@ export default function ResultsScreen() {
       </SafeAreaView>
     );
   }
+  
+  const formatted_material_compose = analysis["material_composition"]
+  .map((item: { material_name: string; environmental_consequence: string }) => 
+    `${item.material_name} - ${item.environmental_consequence}`
+  )
+  .join("\n");
+
+  const is_sustainable = analysis["final_decision"]
+
+  let sustainability_string = "Your clothing item is environmentally sustainable ✅"
+
+  if(!is_sustainable) {
+    sustainability_string = "Your clothing item is not environmentally sustainable ❌"
+  }
 
   const getScoreColor = (score: string) => {
     const numScore = parseInt(score);
     if (numScore >= 8) return '#4CAF50';
     if (numScore >= 5) return '#FF9800';
     return '#F44336';
+  };
+
+  const searchAlternatives = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/search-alternatives`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clothing_type: analysis["clothing_type"],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process request');
+      }
+
+      const data = await response.json();
+      console.log(data);
+
+      // Navigate to results screen with data
+      router.push({
+        pathname: '/alternatives',
+        params: {
+          analysisResults: JSON.stringify(data),
+        },
+      });
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      //Alert.alert('Error', 'Failed to analyze clothing. Please try again.');
+    } 
   };
 
   return (
@@ -49,100 +94,72 @@ export default function ResultsScreen() {
         <Text style={styles.headerTitle}>Analysis Results</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {imageData && (
-          <Image source={{ uri: imageData }} style={styles.image} />
-        )}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.featuresContainer}>
+            <View style={styles.featureCard}>
+              <Ionicons name="leaf" size={32} color="#4CAF50" />
+              <Text style={styles.featureTitle}>Carbon Footprint</Text>
+              <Text style={styles.featureText}>
+                {analysis["carbon_footprint"]}
+              </Text>
+            </View>
 
-        <View style={styles.badge}>
-          <Ionicons
-            name={scanType === 'label' ? 'pricetag' : 'shirt'}
-            size={16}
-            color="#4CAF50"
-          />
-          <Text style={styles.badgeText}>
-            {scanType === 'label' ? 'Label Scan' : 'Garment Scan'}
-          </Text>
-        </View>
+            <View style={styles.featureCard}>
+              <Ionicons name="shirt" size={32} color="#4CAF50" />
+              <Text style={styles.featureTitle}>Material Composition</Text>
+              <Text style={styles.featureText}>
+                {formatted_material_compose}
+              </Text>
+            </View>
 
-        {analysis.sustainability_score && (
-          <View style={styles.scoreCard}>
-            <Text style={styles.scoreLabel}>Sustainability Score</Text>
-            <Text
-              style={[
-                styles.scoreValue,
-                { color: getScoreColor(analysis.sustainability_score.split('/')[0]) },
-              ]}
+            <View style={styles.featureCard}>
+              <Ionicons name="flag" size={32} color="#4CAF50" />
+              <Text style={styles.featureTitle}>Country of Origin</Text>
+              <Text style={styles.featureText}>
+                {analysis["country_origin"]}
+              </Text>
+            </View>
+
+            <View style={styles.featureCard}>
+              <Ionicons name="time" size={32} color="#4CAF50" />
+              <Text style={styles.featureTitle}>Expected Durability</Text>
+              <Text style={styles.featureText}>
+                {analysis["expected_durability"]}
+              </Text>
+            </View>
+
+            <View style={styles.featureCard}>
+              <Ionicons name="arrow-forward-outline" size={32} color="#4CAF50" />
+              <Text style={styles.featureTitle}>Final Verdict</Text>
+              <Text style={styles.featureText}>
+                {sustainability_string}
+              </Text>
+            </View>
+
+            <View style={styles.featureCard}>
+              <Ionicons name="sync" size={32} color="#4CAF50" />
+              <Text style={styles.featureTitle}>Advice</Text>
+              <Text style={styles.featureText}>
+                {analysis["sustainable_tips"][0]}{"\n"}
+                {analysis["sustainable_tips"][1]}{"\n"}
+                {analysis["sustainable_tips"][2]}                
+              </Text>
+            </View>
+          </View>
+
+          {!is_sustainable && (
+            <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={searchAlternatives}
+              activeOpacity={0.8}
             >
-              {analysis.sustainability_score}
-            </Text>
+              <Ionicons name="search-outline" size={24} color="#fff" />
+              <Text style={styles.primaryButtonText}>Search for Alternatives</Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="cut" size={24} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Materials</Text>
-          </View>
-          <View style={styles.materialsContainer}>
-            {analysis.materials.map((material: string, index: number) => (
-              <View key={index} style={styles.materialChip}>
-                <Text style={styles.materialText}>{material}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="time" size={24} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Longevity</Text>
-          </View>
-          <Text style={styles.sectionContent}>{analysis.longevity}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="leaf" size={24} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Recyclability</Text>
-          </View>
-          <Text style={styles.sectionContent}>{analysis.recyclability}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="water" size={24} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Care Instructions</Text>
-          </View>
-          <Text style={styles.sectionContent}>{analysis.care_instructions}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="earth" size={24} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Environmental Impact</Text>
-          </View>
-          <Text style={styles.sectionContent}>{analysis.environmental_impact}</Text>
-        </View>
-
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => router.push('/scan')}
-          >
-            <Ionicons name="scan" size={20} color="#fff" />
-            <Text style={styles.primaryButtonText}>Scan Another</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => router.push('/history')}
-          >
-            <Ionicons name="list" size={20} color="#4CAF50" />
-            <Text style={styles.secondaryButtonText}>View History</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          )}
+        </ScrollView>
     </SafeAreaView>
   );
 }
@@ -151,6 +168,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F1F8E9',
+  },
+  featuresContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
+  featureCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  featureTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2E7D32',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  featureText: {
+    fontSize: 16,
+    color: '#474747',
+    lineHeight: 20,
   },
   header: {
     flexDirection: 'row',
@@ -236,6 +280,9 @@ const styles = StyleSheet.create({
     color: '#333',
     lineHeight: 22,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   materialsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -255,8 +302,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   actions: {
-    marginTop: 24,
-    gap: 12,
+    marginTop: 0,
+    marginBottom: 16,
+    marginHorizontal: 16,
+    gap: 4,
   },
   primaryButton: {
     flexDirection: 'row',

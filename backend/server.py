@@ -14,12 +14,16 @@ import base64
 import json 
 from openai import OpenAI
 from matplotlib import pyplot as plt 
+from firecrawl import Firecrawl
+from fastapi.responses import JSONResponse
 
 ### Hard Coded Stuff Start ### 
 # -- CONFIG
 GREENPT_API_KEY = "sk-CpkdZT1zSlekZOrSv8htAdFeYeiAPkIlqlBuvoyX-vQ"
 GREENPT_BASE_URL = "https://api.greenpt.ai/v1"
 MODEL_ID = "green-l-raw" 
+
+FIRECRAWL_API_KEY = "fc-d129a30298c54d64a4043dbfc85ee899"
 # -- CONFIG
 ### Hard Coded Stuff End ###
 
@@ -71,19 +75,65 @@ class ScanResultResponse(BaseModel):
     scan_type: str
     timestamp: str
 
+class AnalyzeClothingRequest(BaseModel):
+    image_base64: str
+    scan_type: str
+    clothing_type: str
+
+class ClothingRequest(BaseModel):
+    clothing_type: str
+
 # Routes
 @api_router.get("/")
 async def root():
     return {"message": "Clothing Sustainability Scanner API"}
 
+@api_router.post("/search-alternatives")
+async def search_alternatives(request: ClothingRequest):
+    print("Request received!")
+    print("Scanning alternatives")
+    print(request.clothing_type)
+
+    clothing_item = request.clothing_type
+    firecrawl = Firecrawl(api_key=FIRECRAWL_API_KEY)
+
+    query = f"environmentally friendly {clothing_item} Amsterdam"
+
+    results = firecrawl.search(
+        query=query,
+        limit=5,
+    )
+
+    web_queries = results.web
+
+    print(web_queries)
+
+    web_serializable = [
+        {
+            "url": w.url,
+            "title": w.title,
+            "description": w.description
+        }
+        for w in web_queries
+    ]
+
+    print()
+    print("Formatted")
+    print(web_serializable)
+    return JSONResponse(content={"web": web_serializable})
+
 @api_router.post("/analyze-clothing")
 async def analyze_clothing(request: AnalyzeClothingRequest):
     print("Request received!")
-    print(request)
+    #data = request.model_dump()
+    #image_64 = data.get("image_base64")
+    #clothing_type = data.get("clothing_type")
 
-    data = request.model_dump()
-    image_64 = data.get("image_base64")
-    clothing_type = data.get("clothing_type")
+    image_64 = request.image_base64
+    clothing_type = request.clothing_type
+
+    print("Clothing type:")
+    print(clothing_type)
 
     try:
         print(f"Connecting to GreenPT at {GREENPT_BASE_URL}...")
@@ -158,115 +208,16 @@ async def analyze_clothing(request: AnalyzeClothingRequest):
         raw_content = raw_content.split("```")[1].split("```")[0]
         
     try:
-        print(json.loads(raw_content))
-        return json.loads(raw_content)
+        print("Clothing type final: ")
+        print(clothing_type)
+        final_data = json.loads(raw_content)
+        final_data["clothing_type"] = clothing_type
+        print(final_data)
+
+        return final_data
     except json.JSONDecodeError:
         print("❌ Failed to parse JSON. Model output was not valid JSON.")
         return {"error": "Parsing failed", "raw_output": raw_content}
-
-    """
-    try:
-        logger.info(f"Starting analysis for {request.scan_type}")
-        
-        # Get API key from environment
-        api_key = os.getenv("EMERGENT_LLM_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="API key not configured")
-        
-        # Create LLM chat instance
-        session_id = f"clothing-scan-{uuid.uuid4()}"
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=session_id,
-            system_message="You are an expert in textile analysis, fashion sustainability, and environmental impact assessment. Provide detailed, accurate information about clothing materials, longevity, and recyclability."
-        )
-        
-        # Use GPT-4o model
-        chat.with_model("openai", "gpt-4o")
-        
-        # Create the analysis prompt based on scan type
-        if request.scan_type == "label":
-            prompt = ""Analyze this clothing label image and provide a detailed sustainability assessment in the following JSON format:
-
-{
-  "materials": [list of materials/fabrics identified],
-  "longevity": "Expected lifespan and durability assessment (e.g., '5-10 years with proper care')",
-  "recyclability": "Detailed recyclability information including how and where to recycle",
-  "care_instructions": "Detailed care instructions to maximize garment lifespan",
-  "environmental_impact": "Assessment of environmental impact including water usage, chemical processing, carbon footprint",
-  "sustainability_score": "Overall score from 1-10 with brief explanation"
-}
-
-Provide only the JSON response, no additional text.""
-        else:
-            prompt = ""Analyze this clothing/garment image and provide a detailed sustainability assessment in the following JSON format:
-
-{
-  "materials": [list of likely materials/fabrics based on visual appearance],
-  "longevity": "Expected lifespan and durability assessment based on construction and material",
-  "recyclability": "General recyclability information for this type of garment",
-  "care_instructions": "Recommended care instructions for this type of garment",
-  "environmental_impact": "Assessment of typical environmental impact for this type of garment",
-  "sustainability_score": "Overall estimated score from 1-10 with brief explanation"
-}
-
-Provide only the JSON response, no additional text.""
-        
-        # Create image content from base64
-        image_content = ImageContent(image_base64=request.image_base64)
-        
-        # Create user message with image
-        user_message = UserMessage(
-            text=prompt,
-            file_contents=[image_content]
-        )
-        
-        # Get response from AI
-        logger.info("Sending request to OpenAI Vision API")
-        response = await chat.send_message(user_message)
-        logger.info(f"Received response: {response[:200]}...")
-        
-        # Parse the JSON response
-        import json
-        # Remove markdown code blocks if present
-        clean_response = response.strip()
-        if clean_response.startswith("```json"):
-            clean_response = clean_response[7:]
-        if clean_response.startswith("```"):
-            clean_response = clean_response[3:]
-        if clean_response.endswith("```"):
-            clean_response = clean_response[:-3]
-        clean_response = clean_response.strip()
-        
-        analysis_data = json.loads(clean_response)
-        
-        # Create analysis object
-        analysis = ClothingAnalysis(**analysis_data)
-        
-        # Save to database
-        scan_result = ScanResult(
-            image_base64=request.image_base64,
-            analysis=analysis,
-            scan_type=request.scan_type
-        )
-        
-        await db.scans.insert_one(scan_result.dict())
-        logger.info(f"Saved scan result with ID: {scan_result.id}")
-        
-        return {
-            "success": True,
-            "scan_id": scan_result.id,
-            "analysis": analysis.dict()
-        }
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parsing error: {e}")
-        logger.error(f"Response was: {response}")
-        raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(e)}")
-    except Exception as e:
-        logger.error(f"Error analyzing clothing: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-    """
 
 @api_router.get("/scan-history", response_model=List[ScanResultResponse])
 async def get_scan_history():
